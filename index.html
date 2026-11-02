@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشغل القنوات البث المباشر - IPTV Stream Player</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Cairo -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <!-- HLS.js for TS & HLS streaming -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            user-select: none;
+        }
+        /* Glassmorphism styling */
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-light {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.5);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.8);
+        }
+        .animate-pulse-fast {
+            animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100 light:bg-slate-100 light:text-slate-800">
+
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-40 w-full glass border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-xl">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <i class="fa-solid font-bold fa-tv text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">البث المباشر IPTV</h1>
+                <p class="text-xs text-slate-400">مشغل القنوات الرياضية والترفيهية الفائق</p>
+            </div>
+        </div>
+
+        <!-- Quick actions / Search & Theme toggle -->
+        <div class="flex items-center gap-3">
+            <div class="relative hidden sm:block w-64">
+                <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="searchInput" placeholder="بحث عن قناة..." 
+                    class="w-full bg-slate-800/80 border border-slate-700/60 rounded-xl pr-9 pl-4 py-1.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all text-slate-200 placeholder-slate-400">
+            </div>
+
+            <button id="themeToggleBtn" title="تبديل المظهر" class="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center hover:bg-slate-700 text-slate-300 transition-all">
+                <i class="fa-solid fa-moon text-indigo-400" id="themeIcon"></i>
+            </button>
+            <button id="mobileSearchBtn" class="sm:hidden w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-slate-300">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Search Bar (Hidden by default) -->
+    <div id="mobileSearchContainer" class="hidden sm:hidden p-3 bg-slate-900 border-b border-slate-800">
+        <div class="relative w-full">
+            <i class="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+            <input type="text" id="mobileSearchInput" placeholder="بحث عن قناة..." 
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl pr-9 pl-4 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-200">
+        </div>
+    </div>
+
+    <!-- Main Content Layout -->
+    <main class="flex-1 flex flex-col lg:flex-row h-[calc(100vh-65px)] overflow-hidden">
+        
+        <!-- Video Player Section (Left side / Top on mobile) -->
+        <section class="w-full lg:w-2/3 xl:w-3/4 flex flex-col bg-slate-950 p-3 sm:p-4 md:p-6 overflow-y-auto">
+            
+            <!-- Video Container -->
+            <div class="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 group aspect-video max-h-[70vh] flex items-center justify-center">
+                
+                <!-- HTML5 Video Element -->
+                <video id="videoPlayer" class="w-full h-full object-contain" playsinline crossorigin="anonymous"></video>
+
+                <!-- Overlay Loading / Error States -->
+                <div id="playerOverlay" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center z-10 hidden">
+                    <div id="loadingSpinner" class="mb-4">
+                        <i class="fa-solid fa-circle-notch fa-spin text-5xl text-indigo-500"></i>
+                    </div>
+                    <div id="errorIcon" class="mb-4 hidden">
+                        <i class="fa-solid fa-triangle-exclamation text-5xl text-rose-500"></i>
+                    </div>
+                    <h3 id="overlayTitle" class="text-xl font-bold text-slate-100 mb-2">جاري تحميل القناة...</h3>
+                    <p id="overlayMessage" class="text-sm text-slate-400 max-w-md">يرجى الانتظار بينما يتم تجهيز البث المباشر</p>
+                    <button id="retryBtn" class="mt-4 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 hidden">
+                        <i class="fa-solid fa-rotate-right ml-2"></i> إعادة المحاولة
+                    </button>
+                </div>
+
+                <!-- Custom Player Controls Bar -->
+                <div id="customControls" class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 flex flex-col gap-2 z-20">
+                    
+                    <div class="flex items-center justify-between gap-4">
+                        <!-- Left controls (Play/Pause, Volume, Live Badge) -->
+                        <div class="flex items-center gap-3">
+                            <button id="playPauseBtn" class="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white flex items-center justify-center transition">
+                                <i class="fa-solid fa-play text-lg" id="playIcon"></i>
+                            </button>
+
+                            <div class="flex items-center gap-2 group/vol relative">
+                                <button id="muteBtn" class="text-slate-300 hover:text-white p-2">
+                                    <i class="fa-solid fa-volume-high text-lg" id="volumeIcon"></i>
+                                </button>
+                                <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1" 
+                                    class="w-20 accent-indigo-500 bg-slate-700 h-1.5 rounded-lg cursor-pointer">
+                            </div>
+
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                                بث مباشر
+                            </span>
+                        </div>
+
+                        <!-- Right controls (PiP, Fullscreen, Active info) -->
+                        <div class="flex items-center gap-2">
+                            <button id="pipBtn" title="صورة داخل صورة" class="p-2 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition">
+                                <i class="fa-solid fa-clone text-lg"></i>
+                            </button>
+                            <button id="fullscreenBtn" title="ملء الشاشة" class="p-2 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition">
+                                <i class="fa-solid fa-expand text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Channel Details Bar -->
+            <div class="mt-4 glass rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-950/80 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-xl">
+                        <i class="fa-solid fa-broadcast-tower"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="currentChannelName" class="font-bold text-lg text-slate-100">اختر قناة للبدء</h2>
+                            <span id="currentChannelCategory" class="px-2 py-0.5 rounded text-xs bg-slate-800 text-slate-400 font-medium">عام</span>
+                        </div>
+                        <p id="currentChannelUrl" class="text-xs text-slate-500 truncate max-w-xs sm:max-w-md dir-ltr text-right mt-0.5">البث المتوقف</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button id="favCurrentBtn" class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-medium text-sm flex items-center justify-center gap-2 transition border border-slate-700">
+                        <i class="fa-regular fa-star" id="favCurrentIcon"></i>
+                        <span id="favCurrentText">إضافة للمفضلة</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats & Features Note -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                <div class="glass p-3 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-bolt text-amber-400 text-xl"></i>
+                    <div>
+                        <p class="text-xs text-slate-400">تقنية التشغيل</p>
+                        <p class="text-xs font-semibold text-slate-200">HLS.js / HTML5</p>
+                    </div>
+                </div>
+                <div class="glass p-3 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-list-check text-indigo-400 text-xl"></i>
+                    <div>
+                        <p class="text-xs text-slate-400">عدد القنوات</p>
+                        <p id="totalChannelsCount" class="text-xs font-semibold text-slate-200">0 قناة</p>
+                    </div>
+                </div>
+                <div class="glass p-3 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-heart text-rose-400 text-xl"></i>
+                    <div>
+                        <p class="text-xs text-slate-400">المفضلة</p>
+                        <p id="favCount" class="text-xs font-semibold text-slate-200">0 قناة</p>
+                    </div>
+                </div>
+                <div class="glass p-3 rounded-xl flex items-center gap-3">
+                    <i class="fa-solid fa-shield-halved text-emerald-400 text-xl"></i>
+                    <div>
+                        <p class="text-xs text-slate-400">الحالة</p>
+                        <p class="text-xs font-semibold text-emerald-400">متصل وجاهز</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Channels Sidebar Section (Right side / Bottom on mobile) -->
+        <aside class="w-full lg:w-1/3 xl:w-1/4 bg-slate-900 border-r border-slate-800 flex flex-col h-full">
+            
+            <!-- Category Tabs -->
+            <div class="p-3 border-b border-slate-800 bg-slate-900/90">
+                <div class="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-none" id="categoriesBar">
+                    <!-- Dynamic categories generated here -->
+                </div>
+            </div>
+
+            <!-- Channels Count & Sub-header -->
+            <div class="px-4 py-2.5 bg-slate-950/40 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <span id="categoryTitle">جميع القنوات</span>
+                <span id="filteredCountBadge" class="px-2 py-0.5 rounded-full bg-slate-800 text-indigo-400 font-bold">0</span>
+            </div>
+
+            <!-- Channels List Container -->
+            <div id="channelsList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Channel item template will be inserted here -->
+            </div>
+
+        </aside>
+
+    </main>
+
+    <!-- Script Block -->
+    <script>
+        // M3U Playlist Data embedded directly
+        const rawM3uData = `#EXTM3U
+#EXTINF:-1,beINSports-fr1
+http://iptv.am000.tv:8000/live/add17/add17/16.ts
+#EXTINF:-1,beINSports-fr2
+http://iptv.am000.tv:8000/live/add17/add17/17.ts
+#EXTINF:-1,BEINSPORTS-FR3
+http://iptv.am000.tv:8000/live/add17/add17/566.ts
+#EXTINF:-1,Alkas-1
+http://iptv.am000.tv:8000/live/add17/add17/73.ts
+#EXTINF:-1,Alkas-2
+http://iptv.am000.tv:8000/live/add17/add17/405.ts
+#EXTINF:-1,Alkas-3
+http://iptv.am000.tv:8000/live/add17/add17/104.ts
+#EXTINF:-1,Alkas-4
+http://iptv.am000.tv:8000/live/add17/add17/315.ts
+#EXTINF:-1,AD-Sports1
+http://iptv.am000.tv:8000/live/add17/add17/89.ts
+#EXTINF:-1,AD-SPORTS2
+http://iptv.am000.tv:8000/live/add17/add17/114.ts
+#EXTINF:-1,AD-Sports3
+http://iptv.am000.tv:8000/live/add17/add17/90.ts
+#EXTINF:-1,DUBAISPORT1
+http://iptv.am000.tv:8000/live/add17/add17/648.ts
+#EXTINF:-1,DubaiSport-3
+http://iptv.am000.tv:8000/live/add17/add17/646.ts
+#EXTINF:-1,DUBAISPORT-4
+http://iptv.am000.tv:8000/live/add17/add17/647.ts
+#EXTINF:-1,EUROSPORT-eng
+http://iptv.am000.tv:8000/live/add17/add17/357.ts
+#EXTINF:-1,MBCProSports1
+http://iptv.am000.tv:8000/live/add17/add17/40.ts
+#EXTINF:-1,MBCProSports2
+http://iptv.am000.tv:8000/live/add17/add17/39.ts
+#EXTINF:-1,osn-yahala-hd
+http://iptv.am000.tv:8000/live/add17/add17/383.ts
+#EXTINF:-1,OSN-MBC+DRAMA
+http://iptv.am000.tv:8000/live/add17/add17/21.ts
+#EXTINF:-1,OSN-Yahala-Shabab
+http://iptv.am000.tv:8000/live/add17/add17/24.ts
+#EXTINF:-1,OSN-AlYoum
+http://iptv.am000.tv:8000/live/add17/add17/384.ts
+#EXTINF:-1,OSN-CINEMA1
+http://iptv.am000.tv:8000/live/add17/add17/153.ts
+#EXTINF:-1,OSN_Cinma_2
+http://iptv.am000.tv:8000/live/add17/add17/403.ts
+#EXTINF:-1,OSN-MOVIES-ACTION
+http://iptv.am000.tv:8000/live/add17/add17/26.ts
+#EXTINF:-1,OSN-MOVIES-ACTION+2
+http://iptv.am000.tv:8000/live/add17/add17/18.ts
+#EXTINF:-1,OSN-MOVIES-HD
+http://iptv.am000.tv:8000/live/add17/add17/25.ts
+#EXTINF:-1,OSN-MOVIES-DRAMA
+http://iptv.am000.tv:8000/live/add17/add17/19.ts
+#EXTINF:-1,OSN-MOVIES-premier
+http://iptv.am000.tv:8000/live/add17/add17/323.ts
+#EXTINF:-1,OSN-MOVIES-premier2
+http://iptv.am000.tv:8000/live/add17/add17/412.ts
+#EXTINF:-1,OSN-Movie-FESTIVAL
+http://iptv.am000.tv:8000/live/add17/add17/27.ts
+#EXTINF:-1,OSN-MOVIES-Comedy
+http://iptv.am000.tv:8000/live/add17/add17/292.ts
+#EXTINF:-1,OSN-StarMovie
+http://iptv.am000.tv:8000/live/add17/add17/454.ts
+#EXTINF:-1,OSN_Starworld
+http://iptv.am000.tv:8000/live/add17/add17/151.ts
+#EXTINF:-1,OSN-BoxOffice
+http://iptv.am000.tv:8000/live/add17/add17/399.ts
+#EXTINF:-1,OSN-BoxOffice1
+http://iptv.am000.tv:8000/live/add17/add17/109.ts
+#EXTINF:-1,OSN-FIGHT-HD
+http://iptv.am000.tv:8000/live/add17/add17/625.ts
+#EXTINF:-1,Bein-Movies1
+http://iptv.am000.tv:8000/live/add17/add17/387.ts
+#EXTINF:-1,Bein-Movies2
+http://iptv.am000.tv:8000/live/add17/add17/343.ts
+#EXTINF:-1,Bein-Movies3
+http://iptv.am000.tv:8000/live/add17/add17/534.ts
+#EXTINF:-1,OSN-Disney
+http://iptv.am000.tv:8000/live/add17/add17/404.ts
+#EXTINF:-1,OSN-movie-kids
+http://iptv.am000.tv:8000/live/add17/add17/624.ts
+#EXTINF:-1,OSN-NATGEOWILD
+http://iptv.am000.tv:8000/live/add17/add17/626.ts
+#EXTINF:-1,Nat-Geo-AD
+http://iptv.am000.tv:8000/live/add17/add17/82.ts
+#EXTINF:-1,Animal-Planet
+http://iptv.am000.tv:8000/live/add17/add17/91.ts
+#EXTINF:-1,DISCOVERY-CH
+http://iptv.am000.tv:8000/live/add17/add17/124.ts
+#EXTINF:-1,ART-AFLAM1
+http://iptv.am000.tv:8000/live/add17/add17/33.ts
+#EXTINF:-1,ART-AFLAM2
+http://iptv.am000.tv:8000/live/add17/add17/32.ts
+#EXTINF:-1,ART-CINEMA
+http://iptv.am000.tv:8000/live/add17/add17/76.ts
+#EXTINF:-1,ART-Hekayat1
+http://iptv.am000.tv:8000/live/add17/add17/35.ts
+#EXTINF:-1,ART-Hekayat2
+http://iptv.am000.tv:8000/live/add17/add17/34.ts
+#EXTINF:-1,EUROSPORT-1
+http://iptv.am000.tv:8000/live/add17/add17/149.ts
+#EXTINF:-1,EUROSPORT-FR
+http://iptv.am000.tv:8000/live/add17/add17/150.ts
+#EXTINF:-1,Sharjah-Sport
+http://iptv.am000.tv:8000/live/add17/add17/127.ts
+#EXTINF:-1,Sharjah
+http://iptv.am000.tv:8000/live/add17/add17/126.ts
+#EXTINF:-1,Palestine
+http://iptv.am000.tv:8000/live/add17/add17/141.ts
+#EXTINF:-1,PalestineToday
+http://iptv.am000.tv:8000/live/add17/add17/459.ts
+#EXTINF:-1,AL-NASS
+http://iptv.am000.tv:8000/live/add17/add17/147.ts
+#EXTINF:-1,Abu_Dhabi
+http://iptv.am000.tv:8000/live/add17/add17/145.ts
+#EXTINF:-1,TRT-arabic
+http://iptv.am000.tv:8000/live/add17/add17/390.ts
+#EXTINF:-1,Zaytoona
+http://iptv.am000.tv:8000/live/add17/add17/393.ts
+#EXTINF:-1,MTV-Libanon
+http://iptv.am000.tv:8000/live/add17/add17/117.ts
+#EXTINF:-1,Qatar
+http://iptv.am000.tv:8000/live/add17/add17/439.ts
+#EXTINF:-1,CBC-tv
+http://iptv.am000.tv:8000/live/add17/add17/106.ts
+#EXTINF:-1,TNNTunisia
+http://iptv.am000.tv:8000/live/add17/add17/112.ts
+#EXTINF:-1,Cima
+http://iptv.am000.tv:8000/live/add17/add17/118.ts
+#EXTINF:-1,Future
+http://iptv.am000.tv:8000/live/add17/add17/120.ts
+#EXTINF:-1,OTV-Lebanon
+http://iptv.am000.tv:8000/live/add17/add17/92.ts
+#EXTINF:-1,Syria-ikhbaria
+http://iptv.am000.tv:8000/live/add17/add17/102.ts
+#EXTINF:-1,Syria-Aloula
+http://iptv.am000.tv:8000/live/add17/add17/101.ts
+#EXTINF:-1,Syria
+http://iptv.am000.tv:8000/live/add17/add17/99.ts
+#EXTINF:-1,Nile-Comedy
+http://iptv.am000.tv:8000/live/add17/add17/94.ts
+#EXTINF:-1,Nile-cinema
+http://iptv.am000.tv:8000/live/add17/add17/95.ts
+#EXTINF:-1,NILE-DRAMA
+http://iptv.am000.tv:8000/live/add17/add17/410.ts
+#EXTINF:-1,Syria-Education
+http://iptv.am000.tv:8000/live/add17/add17/65.ts
+#EXTINF:-1,ZEE-Aflam
+http://iptv.am000.tv:8000/live/add17/add17/49.ts
+#EXTINF:-1,Zee-Alwan
+http://iptv.am000.tv:8000/live/add17/add17/50.ts
+#EXTINF:-1,SyrianDrama
+http://iptv.am000.tv:8000/live/add17/add17/51.ts
+#EXTINF:-1,Baraem
+http://iptv.am000.tv:8000/live/add17/add17/54.ts
+#EXTINF:-1,Rotana-Classic
+http://iptv.am000.tv:8000/live/add17/add17/56.ts
+#EXTINF:-1,Rotana-Cinema
+http://iptv.am000.tv:8000/live/add17/add17/57.ts
+#EXTINF:-1,Rotana
+http://iptv.am000.tv:8000/live/add17/add17/58.ts
+#EXTINF:-1,OOD
+http://iptv.am000.tv:8000/live/add17/add17/42.ts
+#EXTINF:-1,MBC-1
+http://iptv.am000.tv:8000/live/add17/add17/48.ts
+#EXTINF:-1,MBC-2
+http://iptv.am000.tv:8000/live/add17/add17/47.ts
+#EXTINF:-1,MBC-3
+http://iptv.am000.tv:8000/live/add17/add17/46.ts
+#EXTINF:-1,MBC-4
+http://iptv.am000.tv:8000/live/add17/add17/45.ts
+#EXTINF:-1,MBC-MAX
+http://iptv.am000.tv:8000/live/add17/add17/43.ts
+#EXTINF:-1,MBC-DRAMA
+http://iptv.am000.tv:8000/live/add17/add17/44.ts
+#EXTINF:-1,MBC-ACTION
+http://iptv.am000.tv:8000/live/add17/add17/241.ts
+#EXTINF:-1,LBC
+http://iptv.am000.tv:8000/live/add17/add17/61.ts
+#EXTINF:-1,Iraqiya
+http://iptv.am000.tv:8000/live/add17/add17/111.ts
+#EXTINF:-1,Baghdad
+http://iptv.am000.tv:8000/live/add17/add17/435.ts
+#EXTINF:-1,Iraqia-Sport
+http://iptv.am000.tv:8000/live/add17/add17/148.ts
+#EXTINF:-1,AlSharqiya
+http://iptv.am000.tv:8000/live/add17/add17/612.ts
+#EXTINF:-1,Sharqiya-News
+http://iptv.am000.tv:8000/live/add17/add17/396.ts
+#EXTINF:-1,Dubai-One
+http://iptv.am000.tv:8000/live/add17/add17/63.ts
+#EXTINF:-1,DUBAI
+http://iptv.am000.tv:8000/live/add17/add17/64.ts
+#EXTINF:-1,Cbc-drama
+http://iptv.am000.tv:8000/live/add17/add17/67.ts
+#EXTINF:-1,alarabiya
+http://iptv.am000.tv:8000/live/add17/add17/71.ts
+#EXTINF:-1,AL-MANAR
+http://iptv.am000.tv:8000/live/add17/add17/74.ts
+#EXTINF:-1,ROYA
+http://iptv.am000.tv:8000/live/add17/add17/81.ts
+#EXTINF:-1,Jordan-tv
+http://iptv.am000.tv:8000/live/add17/add17/83.ts
+#EXTINF:-1,Sama-Jordan
+http://iptv.am000.tv:8000/live/add17/add17/445.ts
+#EXTINF:-1,Jordan-Sport
+http://iptv.am000.tv:8000/live/add17/add17/346.ts
+#EXTINF:-1,ANN-news
+http://iptv.am000.tv:8000/live/add17/add17/155.ts
+#EXTINF:-1,AL-JAZEERA
+http://iptv.am000.tv:8000/live/add17/add17/87.ts
+#EXTINF:-1,aljazeera_mubasher
+http://iptv.am000.tv:8000/live/add17/add17/88.ts
+#EXTINF:-1,NBN
+http://iptv.am000.tv:8000/live/add17/add17/140.ts
+#EXTINF:-1,BBC-Arabia
+http://iptv.am000.tv:8000/live/add17/add17/100.ts
+#EXTINF:-1,Saudi-Quran
+http://iptv.am000.tv:8000/live/add17/add17/446.ts
+#EXTINF:-1,Al-Hadath
+http://iptv.am000.tv:8000/live/add17/add17/72.ts
+#EXTINF:-1,Oman
+http://iptv.am000.tv:8000/live/add17/add17/488.ts
+#EXTINF:-1,MTV
+http://iptv.am000.tv:8000/live/add17/add17/486.ts
+#EXTINF:-1,Quran-TV
+http://iptv.am000.tv:8000/live/add17/add17/628.ts
+#EXTINF:-1,Quran-Alfateh
+http://iptv.am000.tv:8000/live/add17/add17/629.ts
+#EXTINF:-1,Mecca
+http://iptv.am000.tv:8000/live/add17/add17/107.ts
+#EXTINF:-1,IQRAA-TV
+http://iptv.am000.tv:8000/live/add17/add17/115.ts
+#EXTINF:-1,Al-Majd
+http://iptv.am000.tv:8000/live/add17/add17/444.ts
+#EXTINF:-1,Almajd-Quran
+http://iptv.am000.tv:8000/live/add17/add17/425.ts
+#EXTINF:-1,MAJD-KIDS
+http://iptv.am000.tv:8000/live/add17/add17/421.ts
+#EXTINF:-1,Fatafeat
+http://iptv.am000.tv:8000/live/add17/add17/483.ts
+#EXTINF:-1,Toyor-AlJanah
+http://iptv.am000.tv:8000/live/add17/add17/437.ts
+#EXTINF:-1,Jeem
+http://iptv.am000.tv:8000/live/add17/add17/119.ts
+#EXTINF:-1,Spacetoon
+http://iptv.am000.tv:8000/live/add17/add17/80.ts
+#EXTINF:-1,CN-ARABIA
+http://iptv.am000.tv:8000/live/add17/add17/68.ts
+#EXTINF:-1,AJYAL
+http://iptv.am000.tv:8000/live/add17/add17/146.ts
+#EXTINF:-1,LCD-Aflam
+http://iptv.am000.tv:8000/live/add17/add17/440.ts
+#EXTINF:-1,Russia-Al-Yaum
+http://iptv.am000.tv:8000/live/add17/add17/450.ts
+#EXTINF:-1,ADTV
+http://iptv.am000.tv:8000/live/add17/add17/419.ts
+#EXTINF:-1,Russia-Today
+http://iptv.am000.tv:8000/live/add17/add17/442.ts
+#EXTINF:-1,BeinSport-Sd1
+http://iptv.am000.tv:8000/live/add17/add17/293.ts
+#EXTINF:-1,BeinSport-Sd2
+http://iptv.am000.tv:8000/live/add17/add17/294.ts
+#EXTINF:-1,BeinSport-Sd3
+http://iptv.am000.tv:8000/live/add17/add17/295.ts
+#EXTINF:-1,BeinSport-Sd4
+http://iptv.am000.tv:8000/live/add17/add17/296.ts
+#EXTINF:-1,BeinSport-Sd5
+http://iptv.am000.tv:8000/live/add17/add17/297.ts
+#EXTINF:-1,BeinSport-Sd6
+http://iptv.am000.tv:8000/live/add17/add17/298.ts
+#EXTINF:-1,BeinSport-Sd7
+http://iptv.am000.tv:8000/live/add17/add17/299.ts
+#EXTINF:-1,BeinSport-Sd8
+http://iptv.am000.tv:8000/live/add17/add17/300.ts
+#EXTINF:-1,BeinSport-Sd9
+http://iptv.am000.tv:8000/live/add17/add17/301.ts
+#EXTINF:-1,BeinSport-Sd10
+http://iptv.am000.tv:8000/live/add17/add17/302.ts
+#EXTINF:-1,EN:BeinSport-11
+http://iptv.am000.tv:8000/live/add17/add17/575.ts
+#EXTINF:-1,EN:BeinSport-12
+http://iptv.am000.tv:8000/live/add17/add17/577.ts
+#EXTINF:-1,FR:BEINSPORT-13
+http://iptv.am000.tv:8000/live/add17/add17/632.ts
+#EXTINF:-1,FR:BEINSPORT-14
+http://iptv.am000.tv:8000/live/add17/add17/633.ts
+#EXTINF:-1,FR:BEINSPORT-15
+http://iptv.am000.tv:8000/live/add17/add17/634.ts
+#EXTINF:-1,FR:BEINSPORT-16
+http://iptv.am000.tv:8000/live/add17/add17/635.ts
+#EXTINF:-1,Sky-Atlantic
+http://iptv.am000.tv:8000/live/add17/add17/441.ts
+#EXTINF:-1,SkySport-1
+http://iptv.am000.tv:8000/live/add17/add17/422.ts
+#EXTINF:-1,KANAL7-HD
+http://iptv.am000.tv:8000/live/add17/add17/422.ts
+#EXTINF:-1,KIDS-MOVIE1
+http://iptv.am000.tv:8000/live/add17/add17/627.ts
+#EXTINF:-1,KIDS-MOVIE2
+http://iptv.am000.tv:8000/live/add17/add17/639.ts
+#EXTINF:-1,KIDS-MOVIE3
+http://iptv.am000.tv:8000/live/add17/add17/640.ts
+#EXTINF:-1,KIDS-MOVIE4
+http://iptv.am000.tv:8000/live/add17/add17/641.ts`;
+
+        // State Management
+        let channels = [];
+        let activeCategory = 'all';
+        let activeChannel = null;
+        let hlsInstance = null;
+        let favorites = JSON.parse(localStorage.getItem('iptv_favs') || '[]');
+
+        // Categories Configuration with Auto-detection rules
+        const categoriesConfig = [
+            { id: 'all', name: 'الكل', icon: 'fa-globe' },
+            { id: 'sports', name: 'الرياضة', icon: 'fa-trophy', keywords: ['sport', 'bein', 'alkas', 'eurosport', 'skysport', 'dubaisport', 'iraqia-sport', 'jordan-sport'] },
+            { id: 'movies', name: 'أفلام ومسلسلات', icon: 'fa-film', keywords: ['osn', 'movie', 'cinema', 'aflam', 'hekayat', 'zee', 'rotana', 'drama', 'cima', 'lcd'] },
+            { id: 'kids', name: 'الأطفال', icon: 'fa-child', keywords: ['kids', 'disney', 'baraem', 'spacetoon', 'cn-arabia', 'ajyal', 'jeem', 'toyor'] },
+            { id: 'news', name: 'الأخبار', icon: 'fa-newspaper', keywords: ['news', 'jazeera', 'bbc', 'russia', 'arabiya', 'hadath', 'ikhbaria', 'tnn', 'ann'] },
+            { id: 'islamic', name: 'قنوات إسلامية', icon: 'fa-kaaba', keywords: ['quran', 'majd', 'mecca', 'iqraa', 'nass', 'alfateh'] },
+            { id: 'general', name: 'تلفزيون عام', icon: 'fa-tv', keywords: ['mbc', 'dubai', 'syria', 'jordan', 'oman', 'qatar', 'cbc', 'mtv', 'roya', 'lbc', 'palestine', 'sharjah', 'abu_dhabi', 'trt', 'future', 'otv', 'nbn', 'zaytoona'] },
+            { id: 'favs', name: 'المفضلة', icon: 'fa-heart' }
+        ];
+
+        // Elements Setup
+        const videoPlayer = document.getElementById('videoPlayer');
+        const channelsListEl = document.getElementById('channelsList');
+        const categoriesBarEl = document.getElementById('categoriesBar');
+        const searchInput = document.getElementById('searchInput');
+        const mobileSearchInput = document.getElementById('mobileSearchInput');
+        const mobileSearchBtn = document.getElementById('mobileSearchBtn');
+        const mobileSearchContainer = document.getElementById('mobileSearchContainer');
+        
+        // Player Control Elements
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIcon');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const pipBtn = document.getElementById('pipBtn');
+        
+        // Overlays and details
+        const playerOverlay = document.getElementById('playerOverlay');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorIcon = document.getElementById('errorIcon');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayMessage = document.getElementById('overlayMessage');
+        const retryBtn = document.getElementById('retryBtn');
+
+        const currentChannelName = document.getElementById('currentChannelName');
+        const currentChannelCategory = document.getElementById('currentChannelCategory');
+        const currentChannelUrl = document.getElementById('currentChannelUrl');
+        const favCurrentBtn = document.getElementById('favCurrentBtn');
+        const favCurrentIcon = document.getElementById('favCurrentIcon');
+        const favCurrentText = document.getElementById('favCurrentText');
+
+        const totalChannelsCount = document.getElementById('totalChannelsCount');
+        const favCount = document.getElementById('favCount');
+        const filteredCountBadge = document.getElementById('filteredCountBadge');
+        const categoryTitle = document.getElementById('categoryTitle');
+
+        // Theme Toggle
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeIcon = document.getElementById('themeIcon');
+
+        // Initializer
+        window.addEventListener('load', () => {
+            parseM3UData(rawM3uData);
+            renderCategories();
+            renderChannels();
+            setupEventListeners();
+            updateStats();
+
+            // Auto play first channel if available
+            if (channels.length > 0) {
+                playChannel(channels[0]);
+            }
+        });
+
+        // Parse M3U Text File Data
+        function parseM3UData(m3uText) {
+            const lines = m3uText.split('\n');
+            let currentName = '';
+
+            lines.forEach((line, idx) => {
+                line = line.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const commaIdx = line.indexOf(',');
+                    if (commaIdx !== -1) {
+                        currentName = line.substring(commaIdx + 1).trim();
+                    }
+                } else if (line.startsWith('http://') || line.startsWith('https://')) {
+                    if (currentName) {
+                        const category = autoDetectCategory(currentName);
+                        channels.push({
+                            id: 'ch_' + (channels.length + 1),
+                            name: currentName,
+                            url: line,
+                            category: category.id,
+                            categoryName: category.name
+                        });
+                        currentName = '';
+                    }
+                }
+            });
+        }
+
+        // Automatic Category Classification based on Keywords
+        function autoDetectCategory(name) {
+            const lowerName = name.toLowerCase();
+            for (let cat of categoriesConfig) {
+                if (cat.keywords) {
+                    for (let kw of cat.keywords) {
+                        if (lowerName.includes(kw)) {
+                            return cat;
+                        }
+                    }
+                }
+            }
+            return categoriesConfig.find(c => c.id === 'general');
+        }
+
+        // Render Categories Navigation Tabs
+        function renderCategories() {
+            categoriesBarEl.innerHTML = '';
+            categoriesConfig.forEach(cat => {
+                const button = document.createElement('button');
+                const isActive = activeCategory === cat.id;
+                
+                button.className = `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    isActive 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' 
+                    : 'bg-slate-800/80 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                }`;
+
+                button.innerHTML = `<i class="fa-solid ${cat.icon}"></i> <span>${cat.name}</span>`;
+                button.addEventListener('click', () => {
+                    activeCategory = cat.id;
+                    renderCategories();
+                    renderChannels();
+                });
+
+                categoriesBarEl.appendChild(button);
+            });
+        }
+
+        // Render Filtered Channel List
+        function renderChannels() {
+            const searchQuery = (searchInput.value || mobileSearchInput.value || '').trim().toLowerCase();
+            channelsListEl.innerHTML = '';
+
+            let filtered = channels.filter(ch => {
+                // Category Filter
+                if (activeCategory === 'favs') {
+                    if (!favorites.includes(ch.id)) return false;
+                } else if (activeCategory !== 'all' && ch.category !== activeCategory) {
+                    return false;
+                }
+                // Search Filter
+                if (searchQuery && !ch.name.toLowerCase().includes(searchQuery)) {
+                    return false;
+                }
+                return true;
+            });
+
+            // Update header info
+            const currentCatObj = categoriesConfig.find(c => c.id === activeCategory);
+            categoryTitle.textContent = currentCatObj ? currentCatObj.name : 'جميع القنوات';
+            filteredCountBadge.textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                channelsListEl.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                        <i class="fa-solid fa-tv-slash text-3xl mb-2 text-slate-600"></i>
+                        <p class="text-sm font-medium">لا توجد قنوات مطابقة</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(ch => {
+                const isSelected = activeChannel && activeChannel.id === ch.id;
+                const isFav = favorites.includes(ch.id);
+
+                const item = document.createElement('div');
+                item.className = `group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all duration-200 ${
+                    isSelected 
+                    ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-md shadow-indigo-900/20' 
+                    : 'bg-slate-800/40 border-slate-800/80 hover:bg-slate-800/90 text-slate-300 hover:border-slate-700'
+                }`;
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 truncate">
+                        <div class="w-8 h-8 rounded-lg ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-700/60 text-slate-400 group-hover:text-slate-200'} flex items-center justify-center font-bold text-xs shrink-0">
+                            ${isSelected ? '<i class="fa-solid fa-play animate-pulse"></i>' : '<i class="fa-solid fa-tv"></i>'}
+                        </div>
+                        <div class="truncate">
+                            <h4 class="font-semibold text-sm truncate leading-tight ${isSelected ? 'text-indigo-200' : 'text-slate-200'}">${ch.name}</h4>
+                            <span class="text-[10px] text-slate-500">${ch.categoryName}</span>
+                        </div>
+                    </div>
+                    
+                    <button class="fav-btn p-1.5 rounded-lg text-slate-500 hover:text-amber-400 transition" title="المفضلة">
+                        <i class="${isFav ? 'fa-solid text-amber-400' : 'fa-regular'} fa-star"></i>
+                    </button>
+                `;
+
+                // Channel Select Event
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.fav-btn')) return; // Ignore fav button clicks
+                    playChannel(ch);
+                });
+
+                // Favorite Toggle Event
+                const favBtn = item.querySelector('.fav-btn');
+                favBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleFavorite(ch.id);
+                });
+
+                channelsListEl.appendChild(item);
+            });
+        }
+
+        // Play Channel with HLS.js or Native HTML5 Video
+        function playChannel(channel) {
+            activeChannel = channel;
+            
+            // Update Details Panel
+            currentChannelName.textContent = channel.name;
+            currentChannelCategory.textContent = channel.categoryName;
+            currentChannelUrl.textContent = channel.url;
+            updateFavCurrentBtn();
+            renderChannels(); // Refresh channel highlight
+
+            // Show Loading Overlay
+            showOverlay(true, false, 'جاري تشغيل القناة...', `يتم الاتصال بـ: ${channel.name}`);
+
+            // Destroy previous HLS instance if active
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            const streamUrl = channel.url;
+
+            // Check HLS Support
+            if (Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                
+                hlsInstance.loadSource(streamUrl);
+                hlsInstance.attachMedia(videoPlayer);
+                
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                    videoPlayer.play().catch(err => {
+                        console.log('Autoplay prevented:', err);
+                    });
+                    hideOverlay();
+                });
+
+                hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                showOverlay(false, true, 'خطأ في الاتصال بالشبكة', 'يتعذر الوصول لسيرفر البث المباشر (تأكد من خادم IPTV أو جدار الحماية)');
+                                hlsInstance.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                showOverlay(false, true, 'خطأ في تيار الفيديو', 'جاري محاولة إصلاح التنسيق...');
+                                hlsInstance.recoverMediaError();
+                                break;
+                            default:
+                                showOverlay(false, true, 'تعذر تشغيل البث', 'القناة غير متاحة حالياً أو يوجد مشكلة بالسيرفر');
+                                hlsInstance.destroy();
+                                break;
+                        }
+                    }
+                });
+            } 
+            // Fallback for browsers supporting native HLS/TS (Safari etc.)
+            else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl') || videoPlayer.canPlayType('video/mp2t')) {
+                videoPlayer.src = streamUrl;
+                videoPlayer.addEventListener('loadedmetadata', () => {
+                    videoPlayer.play();
+                    hideOverlay();
+                });
+                videoPlayer.addEventListener('error', () => {
+                    showOverlay(false, true, 'خطأ بالبث المباشر', 'تعذر تحميل مقطع البث عبر المشغل الافتراضي');
+                });
+            } else {
+                showOverlay(false, true, 'المتصفح غير مدعوم', 'متصفحك لا يدعم تقنية تشغيل بث HLS/TS مباشرة');
+            }
+        }
+
+        // Overlay State Control
+        function showOverlay(isLoading, isError, title, message) {
+            playerOverlay.classList.remove('hidden');
+            if (isLoading) {
+                loadingSpinner.classList.remove('hidden');
+                errorIcon.classList.add('hidden');
+                retryBtn.classList.add('hidden');
+            } else if (isError) {
+                loadingSpinner.classList.add('hidden');
+                errorIcon.classList.remove('hidden');
+                retryBtn.classList.remove('hidden');
+            }
+            overlayTitle.textContent = title;
+            overlayMessage.textContent = message;
+        }
+
+        function hideOverlay() {
+            playerOverlay.classList.add('hidden');
+        }
+
+        // Toggle Favorites
+        function toggleFavorite(chId) {
+            if (favorites.includes(chId)) {
+                favorites = favorites.filter(id => id !== chId);
+            } else {
+                favorites.push(chId);
+            }
+            localStorage.setItem('iptv_favs', JSON.stringify(favorites));
+            updateFavCurrentBtn();
+            updateStats();
+            renderChannels();
+        }
+
+        function updateFavCurrentBtn() {
+            if (!activeChannel) return;
+            const isFav = favorites.includes(activeChannel.id);
+            if (isFav) {
+                favCurrentIcon.className = 'fa-solid fa-star text-amber-400';
+                favCurrentText.textContent = 'إزالة من المفضلة';
+            } else {
+                favCurrentIcon.className = 'fa-regular fa-star';
+                favCurrentText.textContent = 'إضافة للمفضلة';
+            }
+        }
+
+        function updateStats() {
+            totalChannelsCount.textContent = `${channels.length} قناة`;
+            favCount.textContent = `${favorites.length} قناة`;
+        }
+
+        // Setup All Event Listeners
+        function setupEventListeners() {
+            // Play / Pause Toggle
+            playPauseBtn.addEventListener('click', () => {
+                if (videoPlayer.paused) {
+                    videoPlayer.play();
+                } else {
+                    videoPlayer.pause();
+                }
+            });
+
+            videoPlayer.addEventListener('play', () => {
+                playIcon.className = 'fa-solid fa-pause text-lg';
+            });
+
+            videoPlayer.addEventListener('pause', () => {
+                playIcon.className = 'fa-solid fa-play text-lg';
+            });
+
+            // Volume Control
+            volumeSlider.addEventListener('input', (e) => {
+                videoPlayer.volume = e.target.value;
+                videoPlayer.muted = (e.target.value === '0');
+                updateVolumeIcon();
+            });
+
+            muteBtn.addEventListener('click', () => {
+                videoPlayer.muted = !videoPlayer.muted;
+                if (videoPlayer.muted) {
+                    volumeSlider.value = 0;
+                } else {
+                    volumeSlider.value = videoPlayer.volume || 1;
+                }
+                updateVolumeIcon();
+            });
+
+            function updateVolumeIcon() {
+                if (videoPlayer.muted || videoPlayer.volume === 0) {
+                    volumeIcon.className = 'fa-solid fa-volume-xmark text-lg text-rose-400';
+                } else if (videoPlayer.volume < 0.5) {
+                    volumeIcon.className = 'fa-solid fa-volume-low text-lg';
+                } else {
+                    volumeIcon.className = 'fa-solid fa-volume-high text-lg';
+                }
+            }
+
+            // Fullscreen Toggle
+            fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    videoPlayer.requestFullscreen().catch(err => {
+                        console.error('Fullscreen failed:', err);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            // Picture-in-Picture
+            pipBtn.addEventListener('click', async () => {
+                try {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else if (document.pictureInPictureEnabled) {
+                        await videoPlayer.requestPictureInPicture();
+                    }
+                } catch (err) {
+                    console.error('PiP failed:', err);
+                }
+            });
+
+            // Current Channel Fav Button
+            favCurrentBtn.addEventListener('click', () => {
+                if (activeChannel) {
+                    toggleFavorite(activeChannel.id);
+                }
+            });
+
+            // Retry Button Event
+            retryBtn.addEventListener('click', () => {
+                if (activeChannel) {
+                    playChannel(activeChannel);
+                }
+            });
+
+            // Search Inputs
+            searchInput.addEventListener('input', () => renderChannels());
+            mobileSearchInput.addEventListener('input', () => renderChannels());
+
+            mobileSearchBtn.addEventListener('click', () => {
+                mobileSearchContainer.classList.toggle('hidden');
+            });
+
+            // Dark/Light Theme Toggle
+            themeToggleBtn.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                if (isDark) {
+                    themeIcon.className = 'fa-solid fa-moon text-indigo-400';
+                } else {
+                    themeIcon.className = 'fa-solid fa-sun text-amber-500';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
